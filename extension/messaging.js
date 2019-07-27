@@ -6,14 +6,14 @@ export class Messaging {
   constructor(clientid, opts) {
     this.batching_latency = 10*1000 // around 10 seconds for a sync message to propagate
     this.clientid = clientid
-    this.buf = 20 // message sequence number / ring buffer limit
+    this.buf = 100 // message sequence number / ring buffer limit
     this.bidx = this.buf - 2 // our outgoing broadcast index
     this.ridx = {} // our outgoing to recipient indicies
     store.onChanged.addListener( this.recv.bind(this) )
   }
 
   recv(changes) {
-    console.log('recv',changes)
+    //console.log('recv',changes)
     /* Receive broadcast and direct messages
 
        Message format: Messages always sent in pairs:
@@ -42,7 +42,8 @@ export class Messaging {
     }
     for (const key of incomingMessages) {
       const [sender, recipient] = key.split('_').slice(1,1+2)
-      if (sender === this.clientid || recipient !== this.clientid) continue
+      // if (sender === this.clientid) continue // debug sending to self
+      if (recipient !== this.clientid) continue
       const messageKeys = changeKeys.filter( k => k.startsWith(`msg_${sender}_${this.clientid}`) && ! k.endsWith('_idx') )
       this.handleIncomingMessages(key, sender, messageKeys, changes)
     }
@@ -70,9 +71,10 @@ export class Messaging {
       const msgKey = keyFmt(sender, idx)
       if (msgKey in changes && changes[msgKey].newValue !== undefined) {
         messages.push({
+          sender,
           type,
           idx,
-          message:changes[msgKey].newValue
+          payload:changes[msgKey].newValue
         })
       } else {
         break
@@ -81,11 +83,17 @@ export class Messaging {
       if (idx == -1) idx = this.buf - 1
     }
     messages.reverse()
-    console.log('got messages from', sender, messages)
+    if (this.onDirectMessage && type === 'direct') {
+      for (const message of messages) {
+        this.onDirectMessage(message)
+      }
+    }
+    //console.log('got messages from', sender, messages)
     return messages
   }
   
   sendto(recipient, message) {
+    console.log('sendto',recipient,message)
     // sender will clear the messages after {X} seconds
     const payload = this.getpayload(message)
     if (this.ridx[recipient] === undefined) {
@@ -97,7 +105,7 @@ export class Messaging {
       [`msg_${this.clientid}_${recipient}_${idx}`]: payload,
       [`msg_${this.clientid}_${recipient}_idx`]: {t:new Date().getTime(), idx}
     }
-    console.log('sending',messages)
+    //console.log('sending',messages)
     store.set(messages)
     this.ridx[recipient] = (this.ridx[recipient] + 1) % this.buf
   }
@@ -109,7 +117,7 @@ export class Messaging {
       [`bst_${this.clientid}_${this.bidx}`]: payload,
       [`bst_${this.clientid}_idx`]: {t:new Date().getTime(), idx:this.bidx}
     }
-    console.log('sending',messages)
+    //console.log('sending',messages)
     store.set(messages)
     // dont clear the message if we re-use it in the meantime ?
     setTimeout( () => this.clearMessages(messages), this.batching_latency*2 )
