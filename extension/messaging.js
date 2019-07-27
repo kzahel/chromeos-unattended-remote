@@ -10,9 +10,6 @@ export class Messaging {
     this.bidx = this.buf - 2 // our outgoing broadcast index
     this.ridx = {} // our outgoing to recipient indicies
     store.onChanged.addListener( this.recv.bind(this) )
-
-    this.peer_bidx = {} // incoming broadcast indicies
-    this.peer_midx = {} // incoming message indicies
   }
 
   recv(changes) {
@@ -52,14 +49,31 @@ export class Messaging {
   }
 
   handleIncomingBroadcasts(key, sender, messageKeys, changes) {
+    this.handleIncoming(
+      'broadcast',
+      (sender, idx) => `bst_${sender}_${idx}`,
+      key, sender, messageKeys, changes)
+  }
+
+  handleIncomingMessages(key, sender, messageKeys, changes) {
+    this.handleIncoming(
+      'direct',
+      (sender, idx) => `msg_${sender}_${this.clientid}_${idx}`,
+      key, sender, messageKeys, changes)
+  }
+
+  handleIncoming(type, keyFmt, key, sender, messageKeys, changes) {
     const peerIndex = changes[key].newValue.idx
-    this.peer_bidx[sender] = peerIndex
     const messages = []
     let idx = peerIndex
     while (true) {
-      const msgKey = `bst_${sender}_${idx}`
+      const msgKey = keyFmt(sender, idx)
       if (msgKey in changes && changes[msgKey].newValue !== undefined) {
-        messages.push([idx, changes[msgKey].newValue])
+        messages.push({
+          type,
+          idx,
+          message:changes[msgKey].newValue
+        })
       } else {
         break
       }
@@ -67,14 +81,14 @@ export class Messaging {
       if (idx == -1) idx = this.buf - 1
     }
     messages.reverse()
-    console.log('got broadcast messages from', sender, messages)
+    console.log('got messages from', sender, messages)
     return messages
   }
   
   sendto(recipient, message) {
     // sender will clear the messages after {X} seconds
     const payload = this.getpayload(message)
-    if (this.ridx === undefined) {
+    if (this.ridx[recipient] === undefined) {
       this.ridx[recipient] = 0
     }
     // TODO heuristics with overflow
