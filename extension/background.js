@@ -1,6 +1,6 @@
 import {getRandomB16} from './util.js'
-import {Messaging} from './messaging.js'
-import {RTCPeer as SimplePeer} from './peer.js'
+import {Messaging} from './sync_messaging.js'
+import {RTCPeer} from './rtc_peer.js'
 
 
 window.reload = chrome.runtime.reload
@@ -90,7 +90,7 @@ async function p2pconnect(clientid) {
   // the rtc connection will time out
   const opts = {initiator:true, ...p2pOpts}
   console.log('p2p opts',opts)
-  const p = new SimplePeer(opts)
+  const p = new RTCPeer(opts)
   const id = Math.floor(Math.random() * 2**30)
   m.sendto(clientid, {initp2p:true, id})
   p.on('signal', data => {
@@ -133,7 +133,7 @@ async function main() {
       // create a new client conn
       const opts = {...p2pOpts}
       console.log('simplepeer',opts)
-      const peer = new SimplePeer(opts)
+      const peer = new RTCPeer(opts)
       client_conns[message.id] = {peer, peerid: msg.sender}
       peer.on('data', d => console.log('client p2p got data',d))
       peer.on('connect', d => console.log('client p2p connected',d))
