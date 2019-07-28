@@ -1,8 +1,17 @@
 import {getRandomB16} from './util.js'
 import {Messaging} from './messaging.js'
+import {RTCPeer as SimplePeer} from './peer.js'
 
 
-const reload = chrome.runtime.reload
+window.reload = chrome.runtime.reload
+
+const p2pConfig = {
+  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+}
+const p2pOpts = {
+  iceCompleteTimeout: 1,
+  trickle: true
+}
 
 async function get_clientid() {
   const key = 'clientid'
@@ -27,16 +36,16 @@ async function get_clientInfo(clientid) {
   let name;
   let res
   res = await chromise.storage.sync.get(key)
-  if (res[key]) name = res[key]
+  if (res[key]) name = res[key].name
   res = await chromise.storage.local.get(key)
-  if (res[key]) name = res[key]
+  if (res[key]) name = res[key].name
 
   if (! name) name = clientid
 
   const info = {name, t: new Date().getTime()}
 
   await chromise.storage.sync.set({[key]:info})
-  await chromise.storage.local.remove([key])
+  //await chromise.storage.local.remove([key])
   return info
 }
 
@@ -70,16 +79,25 @@ async function getPeers() {
 
 window.initiator_conns = {}
 window.client_conns = {}
+window.aorus = '92364d99165eba90cc60e19142312cde024f2da'
+
+window.aorusreload = function() {
+  m.sendto(aorus, {reload:true})
+}
 
 async function p2pconnect(clientid) {
-  const p = new SimplePeer({initiator:true})
+  // timing on this is very sensitive. if you time this just after a sync window
+  // the rtc connection will time out
+  const opts = {initiator:true, ...p2pOpts}
+  console.log('p2p opts',opts)
+  const p = new SimplePeer(opts)
   const id = Math.floor(Math.random() * 2**30)
   m.sendto(clientid, {initp2p:true, id})
   p.on('signal', data => {
     console.log('initiator wants to signal',data)
     m.sendto(clientid, {frominitiator:true, id, signal:data})
   });
-  p.on('error',e=>console.error('p2p conn failed'))
+  p.on('error',e=>console.error('p2p conn failed',e))
   p.on('connect',()=>console.log('connected'))
   p.on('data',d=>console.log('got data',d))
   initiator_conns[id] = {peer:p, peerid: clientid}
@@ -93,6 +111,14 @@ async function main() {
   console.log('clientid is ',clientid)
   registerSelf()
 
+  /*
+  let ctr = 0
+  setInterval( () => {
+    // this lets us know there's about 16 seconds between sync,
+    // some jitter. sometimes 1 sec, sometimes close to 20
+    chrome.storage.sync.set({[`debug_${clientid}`]: {t:new Date().getTime(), ctr:ctr++}})
+  }, 1000);
+  */
   console.log('getpeers',await getPeers())
   
   const m = new Messaging(clientid)
@@ -105,11 +131,13 @@ async function main() {
     const {message} = msg.payload
     if (message.initp2p) {
       // create a new client conn
-      const peer = new SimplePeer()
+      const opts = {...p2pOpts}
+      console.log('simplepeer',opts)
+      const peer = new SimplePeer(opts)
       client_conns[message.id] = {peer, peerid: msg.sender}
       peer.on('data', d => console.log('client p2p got data',d))
       peer.on('connect', d => console.log('client p2p connected',d))
-      peer.on('error',e=>console.error('p2p conn failed'))
+      peer.on('error',e=>console.error('p2p conn failed',e))
       peer.on('signal', d => {
         console.log('client wants to signal',d)
         m.sendto(msg.sender, {frominitiator:false, signal: d, id:message.id})
@@ -124,7 +152,11 @@ async function main() {
       }
       console.assert(peer)
       console.assert(message.signal)
+      console.log('inputting signal',message.signal)
       peer.signal(message.signal)
+      // drain this more slowly??
+    } else if (message.reload) {
+      chrome.runtime.reload()
     } else {
       console.warn('unknown direct message',m)
     }

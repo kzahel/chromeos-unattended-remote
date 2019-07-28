@@ -13,7 +13,7 @@ export class Messaging {
   }
 
   recv(changes) {
-    //console.log('recv',changes)
+    console.log('sync.recv',changes)
     /* Receive broadcast and direct messages
 
        Message format: Messages always sent in pairs:
@@ -33,7 +33,13 @@ export class Messaging {
     const changeKeys = Object.keys(changes)
     const incomingBroadcasts = changeKeys.filter( k => k.startsWith('bst_') && k.endsWith('_idx') )
     const incomingMessages = changeKeys.filter( k => k.startsWith('msg_') && k.endsWith('_idx') )
+    const incomingInfos = changeKeys.filter( k => k.startsWith('info_') )
 
+    for (const key of incomingInfos) {
+      const sender = key.split('_')[1]
+      if (sender === this.clientid) continue
+      console.log('new client info:', sender, changes[key].newValue)
+    }
     for (const key of incomingBroadcasts) {
       const sender = key.split('_')[1]
       if (sender === this.clientid) continue
@@ -52,19 +58,27 @@ export class Messaging {
   handleIncomingBroadcasts(key, sender, messageKeys, changes) {
     this.handleIncoming(
       'broadcast',
-      (sender, idx) => `bst_${sender}_${idx}`,
+      (sender, idx) => {
+        console.assert(idx !== undefined)
+        return `bst_${sender}_${idx}`
+      },
       key, sender, messageKeys, changes)
   }
 
   handleIncomingMessages(key, sender, messageKeys, changes) {
     this.handleIncoming(
       'direct',
-      (sender, idx) => `msg_${sender}_${this.clientid}_${idx}`,
+      (sender, idx) => {
+        console.assert(idx !== undefined)
+        return `msg_${sender}_${this.clientid}_${idx}`
+      },
       key, sender, messageKeys, changes)
   }
 
   handleIncoming(type, keyFmt, key, sender, messageKeys, changes) {
+    if (changes[key].newValue === undefined) return
     const peerIndex = changes[key].newValue.idx
+    console.assert(peerIndex !== undefined)
     const messages = []
     let idx = peerIndex
     while (true) {
@@ -93,13 +107,14 @@ export class Messaging {
   }
   
   sendto(recipient, message) {
-    console.log('sendto',recipient,message)
     // sender will clear the messages after {X} seconds
     const payload = this.getpayload(message)
     if (this.ridx[recipient] === undefined) {
       this.ridx[recipient] = 0
     }
     // TODO heuristics with overflow
+    // these dont get batched apparently.
+
     const idx = this.ridx[recipient]
     const messages = {
       [`msg_${this.clientid}_${recipient}_${idx}`]: payload,
@@ -107,6 +122,7 @@ export class Messaging {
     }
     //console.log('sending',messages)
     store.set(messages)
+    console.log('sendto',idx,recipient,message)
     this.ridx[recipient] = (this.ridx[recipient] + 1) % this.buf
   }
   
