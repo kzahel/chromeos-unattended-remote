@@ -17,7 +17,8 @@ class NanoEvents {
 export class RTCPeer extends NanoEvents {
   constructor(opts) {
     super()
-    this.initiator = opts.initiator
+    this.opts = opts || {}
+    this.initiator = this.opts.initiator
     this.pc = new RTCPeerConnection
     this.dc = null
     this.pc.onicecandidate = this.onicecandidate
@@ -38,7 +39,6 @@ export class RTCPeer extends NanoEvents {
     this.dc.onerror = this.dc_error
 
     this.pc.ondatachannel = this.ondatachannel
-    this.opts = opts
     if (this.initiator) this.initiate()
   }
   async initiate() {
@@ -49,7 +49,7 @@ export class RTCPeer extends NanoEvents {
   }
   async signal(data) {
     if (data.candidate) {
-      console.log('adding as ice candidate')
+      // console.log('adding as ice candidate')
       this.pc.addIceCandidate(data.candidate)
       return
     }
@@ -75,7 +75,7 @@ export class RTCPeer extends NanoEvents {
     console.warn('unhandled signal',data)
   }
   onicecandidate = e => {
-    console.log('on ice candidate',e)
+    // console.log('on ice candidate',e)
     if (e.target.iceGatheringState === 'complete') return
     this.emit('signal',{candidate:e.candidate.toJSON()})
   }
@@ -103,6 +103,19 @@ export class RTCPeer extends NanoEvents {
 
   dc_peer_message = e => {
     console.log('dc_peer message',e)
+    // try to json parse
+    let {data} = e
+    if (data instanceof ArrayBuffer) {
+      console.log('array buffer dc message',data)
+    } else {
+      try {
+        data = JSON.parse(data)
+        console.log('got json message',data)
+      } catch(e) {
+        console.log('got string message',data)
+      }
+    }
+    this.emit('data',data)
   }
   dc_peer_open = () => {
     console.log('dc_peer open')
@@ -114,4 +127,13 @@ export class RTCPeer extends NanoEvents {
     console.log('dc_peer error')
   }
 
+  send = d => {
+    if (d instanceof ArrayBuffer) {
+      this.dc.send(d)
+    } else if (typeof d === 'string') {
+      this.dc.send(d)
+    } else {
+      this.dc.send(JSON.stringify(d))
+    }
+  }
 }

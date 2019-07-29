@@ -1,19 +1,29 @@
 import {getRandomB16} from './util.js'
 import {Messaging} from './sync_messaging.js'
 import {RTCPeer} from './rtc_peer.js'
-
+import {handleMessage} from './handler.js'
 
 window.reload = chrome.runtime.reload
+window.initiator_conns = {}
+window.client_conns = {}
+window.aorus = '92364d99165eba90cc60e19142312cde024f2da'
+window.asus15 = "71235165e3d6122a8df2f6d56fac3c77fc2915e"
+window.set_clientInfo = set_clientInfo
+window.aorusreload = aorusreload
+window.p2pconnect = p2pconnect
+
+window.authfetch = async function(url) {
+  const username = 'user'
+  const password = (await chromise.storage.local.get('rpcpassword')).rpcpassword
+  const headers = new Headers({'Authorization': 'Basic '+btoa(`${username}:${password}`)})
+  return fetch(url,{headers})
+}
 
 const p2pConfig = {
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
 }
-const p2pOpts = {
-  iceCompleteTimeout: 1,
-  trickle: true
-}
 
-async function get_clientid() {
+async function ensure_clientid() {
   const key = 'clientid'
   const data = await chromise.storage.local.get(key)
 
@@ -26,12 +36,11 @@ async function get_clientid() {
   }
 }
 
-
 function storageChanged( changes, area ) {
   console.log('storage change',changes,area)
 }
 
-async function get_clientInfo(clientid) {
+async function getandsend_clientInfo(clientid) {
   const key = `info_${clientid}`
   let name;
   let res
@@ -50,18 +59,17 @@ async function get_clientInfo(clientid) {
 }
 
 async function set_clientInfo(name) {
-  const clientid = await get_clientid()
+  const clientid = await ensure_clientid()
   const key = `info_${clientid}`
   const info = {name, t: new Date().getTime()}
 
   await chromise.storage.local.set({[key]:info})
 }
 
-window.set_clientInfo = set_clientInfo
 
 async function registerSelf() {
-  const clientid = await get_clientid()
-  const clientInfo = await get_clientInfo(clientid)
+  const clientid = await ensure_clientid()
+  const clientInfo = await getandsend_clientInfo(clientid)
 
   console.log('register self',clientid, clientInfo)
 }
@@ -77,40 +85,40 @@ async function getPeers() {
   return peers
 }
 
-window.initiator_conns = {}
-window.client_conns = {}
-window.aorus = '92364d99165eba90cc60e19142312cde024f2da'
+function aorusreload() {
+  if (initiator_conns.length) {
+    const dc = Object.values(initiator_conns)[0].peer.dc
+    if (dc.readyState === 'open') {
+      dc.send({command:{reload:true}})
+      return
+    }
+  }
 
-window.aorusreload = function() {
   m.sendto(aorus, {reload:true})
 }
 
-async function p2pconnect(clientid) {
-  // timing on this is very sensitive. if you time this just after a sync window
-  // the rtc connection will time out
-  const opts = {initiator:true, ...p2pOpts}
-  console.log('p2p opts',opts)
-  const p = new RTCPeer(opts)
+function p2pconnect(clientid) {
+  const opts = {initiator:true}
+  const peer = new RTCPeer(opts)
+
   const id = Math.floor(Math.random() * 2**30)
   m.sendto(clientid, {initp2p:true, id})
-  p.on('signal', data => {
-    console.log('initiator wants to signal',data)
+  peer.on('signal', data => {
+    // console.log('initiator wants to signal',data)
     m.sendto(clientid, {frominitiator:true, id, signal:data})
   });
-  p.on('error',e=>console.error('p2p conn failed',e))
-  p.on('connect',()=>console.log('connected'))
-  p.on('data',d=>console.log('got data',d))
-  initiator_conns[id] = {peer:p, peerid: clientid}
+  peer.on('error',e=>console.error('p2p conn failed',e))
+  peer.on('connect',()=>console.log('connected'))
+  peer.on('data',d=>console.log('got data',d))
+  initiator_conns[id] = {peer, peerid: clientid}
+  return peer
 }
-window.p2pconnect = p2pconnect
 
 async function main() {
-  console.log('main')
-  const clientid = await get_clientid()
+  const clientid = await ensure_clientid()
   window.me = clientid
   console.log('clientid is ',clientid)
   registerSelf()
-
   /*
   let ctr = 0
   setInterval( () => {
@@ -120,51 +128,9 @@ async function main() {
   }, 1000);
   */
   console.log('getpeers',await getPeers())
-  
   const m = new Messaging(clientid)
   window.m = m
-
-  
-  m.onDirectMessage = msg => {
-    console.log('got direct message',msg)
-
-    const {message} = msg.payload
-    if (message.initp2p) {
-      // create a new client conn
-      const opts = {...p2pOpts}
-      console.log('simplepeer',opts)
-      const peer = new RTCPeer(opts)
-      client_conns[message.id] = {peer, peerid: msg.sender}
-      peer.on('data', d => console.log('client p2p got data',d))
-      peer.on('connect', d => console.log('client p2p connected',d))
-      peer.on('error',e=>console.error('p2p conn failed',e))
-      peer.on('signal', d => {
-        console.log('client wants to signal',d)
-        m.sendto(msg.sender, {frominitiator:false, signal: d, id:message.id})
-      })
-    } else if (message.signal && message.id) {
-      let peer
-      if (message.frominitiator) {
-        // from the initiator 
-        peer = client_conns[message.id].peer
-      } else {
-        peer = initiator_conns[message.id].peer
-      }
-      console.assert(peer)
-      console.assert(message.signal)
-      console.log('inputting signal',message.signal)
-      peer.signal(message.signal)
-      // drain this more slowly??
-    } else if (message.reload) {
-      chrome.runtime.reload()
-    } else {
-      console.warn('unknown direct message',m)
-    }
-    
-  }
+  m.onDirectMessage = handleMessage
 }
 
 main()
-
-
-

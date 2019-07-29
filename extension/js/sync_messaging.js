@@ -13,7 +13,7 @@ export class Messaging {
   }
 
   recv(changes) {
-    console.log('sync.recv',changes)
+    // console.log('sync.recv',changes)
     /* Receive broadcast and direct messages
 
        Message format: Messages always sent in pairs:
@@ -122,7 +122,7 @@ export class Messaging {
     }
     //console.log('sending',messages)
     store.set(messages)
-    console.log('sendto',idx,recipient,message)
+    // console.log('sendto',idx,recipient,message)
     this.ridx[recipient] = (this.ridx[recipient] + 1) % this.buf
   }
   
