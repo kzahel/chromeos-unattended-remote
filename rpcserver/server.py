@@ -30,31 +30,26 @@ print 'rpc password is:', settings['password']
 Handler = SimpleHTTPServer.SimpleHTTPRequestHandler
 
 class Handler(SimpleHTTPServer.SimpleHTTPRequestHandler):
-
-    def authenticated(self):
-        failed = True
+    def check_authenticated(self):
         if 'authorization' in self.headers:
             s = self.headers['authorization'].split(' ')[1]
             username, password = base64.b64decode(s).split(':')
             if password == settings['password']:
-                failed = False
-        if failed:
-            self.unauthorized()
-        return failed
+                return True
             
-    def unauthorized(self):
+    def send_unauthorized(self):
         print '403 unauthorized'
         self.send_response(403)
         self.end_headers()
         self.wfile.write('unauthorized')
 
-    def do_click(self, x, y):
+    def doclick(self, x, y):
         touchscreen.touch(x,y)
         self.send_response(200)
         self.end_headers()
         self.wfile.write('touched.')
         
-    def do_screenshot(self):
+    def doscreenshot(self):
         screen_num=0
         image = crtcScreenshot(screen_num)
 
@@ -67,27 +62,17 @@ class Handler(SimpleHTTPServer.SimpleHTTPRequestHandler):
 
         self.wfile.write(imgByteArr)
 
-        
-    def do_icon(self):
-        with open('icon16.png', 'rb') as fo:
-            data = fo.read()
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(data)
-        
     def do_GET(self):
-        if not self.authenticated():
-            return
-        if self.path == '/icon':
-            return self.do_icon()
+        if not self.check_authenticated():
+            return self.send_unauthorized()
         if self.path == '/screenshot':
-            return self.do_screenshot()
+            return self.doscreenshot()
         if self.path.startswith('/click'):
             params = dict( kv.split('=') for kv in self.path.split('?')[1].split('&') )
             for k,v in params.items():
                 params[k] = int(v)
             print 'parsed params', params
-            return self.do_click(params['x'], params['y'])
+            return self.doclick(params['x'], params['y'])
         print 'get',self.path
         body = 'OKOKOK'
         self.send_response(200)

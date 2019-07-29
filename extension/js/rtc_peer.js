@@ -62,6 +62,7 @@ export class RTCPeer extends NanoEvents {
       const answer = await this.pc.createAnswer()
       this.localDescription = answer
       this.pc.setLocalDescription(answer)
+      console.log('webrtc: sending answer')
       this.emit('signal',answer.toJSON())
       return
     }
@@ -69,6 +70,7 @@ export class RTCPeer extends NanoEvents {
       console.assert(this.initiator)
       this.remoteDescription = data
       this.pc.setRemoteDescription(data)
+      console.log('webrtc: got answer')
       return
     }
 
