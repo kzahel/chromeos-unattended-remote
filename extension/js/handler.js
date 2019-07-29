@@ -37,8 +37,13 @@ export function handleMessage(msg) {
         }
         if (command.fetch) {
           const response = await authfetch(`${config.rpc_url}${command.fetch}`)
-          const text = await response.text()
-          peer.send({fetched:true, text})
+          let data
+          if (command.responseType) {
+            data = await response[command.responseType]()
+          } else {
+            data = await response.text()
+          }
+          peer.send(data)
         }
       }
     })

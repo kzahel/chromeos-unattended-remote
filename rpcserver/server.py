@@ -62,19 +62,27 @@ class Handler(SimpleHTTPServer.SimpleHTTPRequestHandler):
 
         self.wfile.write(imgByteArr)
 
+    def send_file(self, path):
+        self.send_response(200)
+        self.end_headers()
+        with open(path, 'rb') as fo:
+            self.wfile.write(fo.read())
+        
     def do_GET(self):
         if not self.check_authenticated():
             return self.send_unauthorized()
-        if self.path == '/screenshot':
+        elif self.path == '/screenshot':
             return self.doscreenshot()
-        if self.path.startswith('/click'):
+        elif self.path.startswith('/click'):
             params = dict( kv.split('=') for kv in self.path.split('?')[1].split('&') )
             for k,v in params.items():
                 params[k] = int(v)
             print 'parsed params', params
             return self.doclick(params['x'], params['y'])
+        elif self.path == '/screenshot.png':
+            return self.send_file(self.path[1:])
         print 'get',self.path
-        body = 'OKOKOK'
+        body = 'Unknown URL'
         self.send_response(200)
         self.end_headers()
         self.wfile.write(body)
