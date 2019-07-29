@@ -1,4 +1,5 @@
 import time
+import os
 import random
 from evdev import UInput, AbsInfo
 from evdev.ecodes import EV_ABS, EV_KEY, \
@@ -31,6 +32,9 @@ cap = {
 
 class FakeTouchscreen:
     def __init__(self):
+        if not os.path.exists('/dev/uinput'):
+            print 'error /dev/uinput does not exist. cannot make device'
+            return
         self.d = UInput(cap, name='Fake Touchscreen', version=0x3)
 
     def down(self,x,y):
