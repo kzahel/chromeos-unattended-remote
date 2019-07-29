@@ -31,18 +31,16 @@ Handler = SimpleHTTPServer.SimpleHTTPRequestHandler
 
 class Handler(SimpleHTTPServer.SimpleHTTPRequestHandler):
 
-    def do_HEAD(self):
-        print 'head',self.path
-        self.send_response(200,'ok')
-
-    def authenticate(self):
+    def authenticated(self):
+        failed = True
         if 'authorization' in self.headers:
             s = self.headers['authorization'].split(' ')[1]
             username, password = base64.b64decode(s).split(':')
-            if password != settings['password']:
-                return self.unauthorized()
-        else:
+            if password == settings['password']:
+                failed = False
+        if failed:
             self.unauthorized()
+        return failed
             
     def unauthorized(self):
         print '403 unauthorized'
@@ -78,7 +76,8 @@ class Handler(SimpleHTTPServer.SimpleHTTPRequestHandler):
         self.wfile.write(data)
         
     def do_GET(self):
-        self.authenticate()
+        if not self.authenticated():
+            return
         if self.path == '/icon':
             return self.do_icon()
         if self.path == '/screenshot':
