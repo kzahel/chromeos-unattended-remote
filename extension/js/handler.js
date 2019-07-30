@@ -1,8 +1,11 @@
 import {RTCPeer} from './rtc_peer.js'
 import {config} from './config.js'
+import {
+  authfetch
+} from './common.js'
 
 export function handleMessage(msg) {
-  //console.log('got direct message',msg)
+  // console.log('got direct message',msg)
   const {message} = msg.payload
   if (message.initp2p) {
     const peer = new RTCPeer()
@@ -51,9 +54,10 @@ export function handleMessage(msg) {
     peer.on('error',e=>console.error('p2p conn failed',e))
     peer.on('signal', d => {
       // console.log('client wants to signal',d)
-      m.sendto(msg.sender, {frominitiator:false, signal: d, id:message.id})
+      m.sendto(msg.sender, {test:1, frominitiator:false, signal: d, id:message.id, ctr:peer.ctr++})
     })
   } else if (message.signal && message.id) {
+    console.log('signal',message)
     let peer
     if (message.frominitiator) {
       // from the initiator 

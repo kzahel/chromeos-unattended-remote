@@ -4,21 +4,34 @@ const {
   CardContent,
   CardActions,
   Button,
+  CircularProgress,
 } = MaterialUI;
 
-import {getPeers} from './background.js'
+import {
+  main,
+  getPeers,
+  p2pconnect,
+} from './common.js'
+
+
+
+window.initiator_conns = {}
+window.client_conns = {}
 
 
 function Peer(props) {
   const [p, setP] = useState(null)
+  const [connecting, setConnecting] = useState(false)
   const [connected, setConnected] = useState(false)
   
-  function connect() {
+  async function connect() {
     const p = p2pconnect(props.clientid)
+    setP(p)
+    setConnecting(true)
     p.on('connected',()=>{
       setConnected(true)
+      setConnecting(false)
     })
-    setP(p)
   }
   function screenshot() {
     p.send({command:{screenshot:true}})
@@ -32,12 +45,6 @@ function Peer(props) {
   function echo() {
     p.send({command:{echo:'echo this'}})
   }
-
-  useEffect(()=>{
-    if (p) {
-      console.log('p changed...')
-    }
-  },[p])
   
   return (
     <Card styles={{padding:10,margin:10}}>
@@ -45,6 +52,7 @@ function Peer(props) {
         Peer: {props.info.name}
         <br />
         {p ? JSON.stringify(p) : null }
+        {connecting ? <CircularProgress /> : null}
       </CardContent>
       <CardActions>
         <Button onClick={connect}>Connect</Button>
@@ -84,6 +92,9 @@ function Options() {
 }
 
 document.addEventListener("DOMContentLoaded",()=>{
+
+  main()
+  
   const approot = document.getElementById('approot')
   console.log('approot',approot)
   ReactDOM.render(

@@ -7,8 +7,10 @@ class NanoEvents {
     this._listeners[k].push(cb)
   }
   emit(k, arg) {
-    for (const cb of this._listeners[k]) {
-      cb(arg)
+    if (this._listeners[k]) {
+      for (const cb of this._listeners[k]) {
+        cb(arg)
+      }
     }
   }
 }
@@ -19,6 +21,7 @@ export class RTCPeer extends NanoEvents {
     super()
     this.opts = opts || {}
     this.initiator = this.opts.initiator
+    this.ctr = 1
     this.pc = new RTCPeerConnection
     this.dc = null
     this.pc.onicecandidate = this.onicecandidate
@@ -39,12 +42,13 @@ export class RTCPeer extends NanoEvents {
     this.dc.onerror = this.dc_error
 
     this.pc.ondatachannel = this.ondatachannel
-    if (this.initiator) this.initiate()
+    if (this.initiator) this.connect()
   }
-  async initiate() {
+  async connect() {
     const offer = await this.pc.createOffer()
     this.pc.setLocalDescription(offer)
     this.localDescription = offer
+    console.log('webrtc: creating initial offer')
     this.emit('signal',offer.toJSON())
   }
   async signal(data) {
@@ -58,16 +62,17 @@ export class RTCPeer extends NanoEvents {
       console.assert(! this.initiator)
       this.remoteDescription = data
       this.pc.setRemoteDescription(data)
-
+      
       const answer = await this.pc.createAnswer()
       this.localDescription = answer
       this.pc.setLocalDescription(answer)
-      console.log('webrtc: sending answer')
+      console.log('webrtc: got remote offer, sending answer')
       this.emit('signal',answer.toJSON())
       return
     }
     if (data.type === 'answer') {
       console.assert(this.initiator)
+      console.assert(! this.remoteDescription)
       this.remoteDescription = data
       this.pc.setRemoteDescription(data)
       console.log('webrtc: got answer')
