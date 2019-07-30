@@ -1,0 +1,7 @@
+extension/jsx
+node_modules
+extension/js/third-party/browserify-deps.js
+extension/package.zip
+*.pyc
+yarn.lock
+rpcserver/settings.json

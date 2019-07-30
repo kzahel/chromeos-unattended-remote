@@ -74,7 +74,7 @@ async function registerSelf() {
   console.log('register self',clientid, clientInfo)
 }
 
-async function getPeers() {
+export async function getPeers() {
   const res = await chromise.storage.sync.get()
   const infos = Object.keys(res).filter( k => k.startsWith('info_') )
   const peers = []
@@ -132,5 +132,9 @@ async function main() {
   window.m = m
   m.onDirectMessage = handleMessage
 }
+
+chrome.browserAction.onClicked.addListener(()=>{
+  chrome.runtime.openOptionsPage()
+});
 
 main()

@@ -95,6 +95,7 @@ export class RTCPeer extends NanoEvents {
   }
   dc_open = () => {
     console.log('dc open')
+    this.emit('connected')
   }
   dc_close = () => {
     console.log('dc close')
