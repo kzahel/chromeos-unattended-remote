@@ -19,6 +19,7 @@ Approach: Nothing fancy. Assume the user of the program is in developer mode and
 1. python server that runs in crouton (as root) that can
   - take screenshot
   - enter keystrokes
+  - click on screen
 2. browser extension that authenticates remote users and forwards commands to the local python server
 
 The python server listens on localhost and needs an initial pairing with the locally installed browser extension 
