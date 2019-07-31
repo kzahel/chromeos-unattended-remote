@@ -1,10 +1,11 @@
-import SimpleHTTPServer
-import SocketServer
+import tornado.httpserver
+import tornado.ioloop
+import tornado.web
+
 import base64
 import json
 import os
 import io
-
 import pdb
 
 from screenshot.gbm import crtcScreenshot
@@ -27,68 +28,71 @@ settings = initialize_settings()
 print 'listening on 127.0.0.1:%s' % settings['port']
 print 'rpc password is:', settings['password']
 
-Handler = SimpleHTTPServer.SimpleHTTPRequestHandler
+def basicauth(func):
+    def inner(self, *args, **kw):
+        if self.get_current_user():
+            return func(self, *args, **kw)
+        else:
+            self.send_unauthorized()
+    return inner
 
-class Handler(SimpleHTTPServer.SimpleHTTPRequestHandler):
-    def check_authenticated(self):
-        if 'authorization' in self.headers:
-            s = self.headers['authorization'].split(' ')[1]
+
+class BH(tornado.web.RequestHandler):
+    def set_cors(self):
+        self.set_header('Access-Control-Expose-Headers','content-length')
+
+    def get_current_user(self):
+        if 'authorization' in self.request.headers:
+            s = self.request.headers.get('authorization').split(' ')[1]
             username, password = base64.b64decode(s).split(':')
             if password == settings['password']:
                 return True
-            
-    def send_unauthorized(self):
-        print '403 unauthorized'
-        self.send_response(403)
-        self.end_headers()
-        self.wfile.write('unauthorized')
 
-    def doclick(self, x, y):
-        touchscreen.touch(x,y)
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write('touched.')
-        
-    def doscreenshot(self):
+    def send_unauthorized(self):
+        self.set_status(403)
+        self.write('unauthorized')
+    
+class MainHandler(BH):
+    def get(self):
+        self.write("Hello, world")
+
+class FakeScreenshotHandler(BH):
+    @basicauth
+    def get(self):
+        self.set_cors()
+        self.set_header('content-type','image/png')
+        self.write(open('screenshot.png','rb').read())
+
+class ScreenshotHandler(BH):
+    @basicauth
+    def get(self):
         screen_num=0
         image = crtcScreenshot(screen_num)
-
         imgByteArr = io.BytesIO()
         image.save(imgByteArr, format='PNG')
         imgByteArr = imgByteArr.getvalue()
+        self.write(imgByteArr)
 
-        self.send_response(200)
-        self.end_headers()
-
-        self.wfile.write(imgByteArr)
-
-    def send_file(self, path):
-        self.send_response(200)
-        self.end_headers()
-        with open(path, 'rb') as fo:
-            self.wfile.write(fo.read())
+class ClickHandler(BH):
+    @basicauth
+    def get(self):
+        x = int(self.get_argument('x'))
+        y = int(self.get_argument('x'))
+        touchscreen.touch(x,y)
+        self.write('ok')
         
-    def do_GET(self):
-        if not self.check_authenticated():
-            return self.send_unauthorized()
-        elif self.path == '/screenshot':
-            return self.doscreenshot()
-        elif self.path.startswith('/click'):
-            params = dict( kv.split('=') for kv in self.path.split('?')[1].split('&') )
-            for k,v in params.items():
-                params[k] = int(v)
-            print 'parsed params', params
-            return self.doclick(params['x'], params['y'])
-        elif self.path == '/screenshot.png':
-            return self.send_file(self.path[1:])
-        print 'get',self.path
-        body = 'Unknown URL'
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(body)
 
-httpd = SocketServer.TCPServer(('127.0.0.1', settings['port']), Handler, bind_and_activate=False)
-httpd.allow_reuse_address = True
-httpd.server_bind()
-httpd.server_activate()
-httpd.serve_forever()
+def main():
+    application = tornado.web.Application([
+        (r"/", MainHandler),
+        ('/screenshot.png', FakeScreenshotHandler),
+        ('/screenshot', ScreenshotHandler),
+        ('/click', ClickHandler),
+    ])
+    http_server = tornado.httpserver.HTTPServer(application)
+    http_server.listen(settings['port'])
+    tornado.ioloop.IOLoop.current().start()
+
+
+if __name__ == "__main__":
+    main()
