@@ -2,12 +2,12 @@
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4/PGFHCaSlVp2LLPtlhHuxyidlsx+6Xox28eyKjeiFIUxsF0ei4wykXXcCjkPbeCjZjv8tXzONrWpn6Nvk1BRMFza8zNKfR4oQelBeMeGwr/JvGCb8CQxPaDXrjbVYEyYlBC44mp1qxsybIi44ftT6qkvWz1q4dpbyOfb0ZZnDbT0mhPxLn5TtTAhseAtkVw6W6ToiSM5Bs+dooMwGWnMpBjIEFlXfcAJ1mWjcsWKnvSPY0NfDb/vt60bXR5ACgTj2dStd4P66XC3uFNw6HhRuxED1RjAR3oWRQZH9LxfqkBjUMO4Jnf+Icw6TfRWTGp1QJ1cglg/uNlMjmjA3u0sQIDAQAB",
   "name": "Unattended Remote",
   "manifest_version": 2,
-  "version":"0.0.7",
+  "version":"0.0.9",
   "homepage_url": "https://www.chromebeat.com",
   "options_page": "options.html",
   "browser_action": {
       "default_icon": "icons/icon128.png",
-      "default_title": "OK Remote Dev"
+      "default_title": "Unattended Remote"
   },
   "background": {
     "page": "background.html",

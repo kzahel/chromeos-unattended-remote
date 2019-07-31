@@ -99,7 +99,6 @@ function Peer(props) {
         {connected &&
          <span>
          <Button onClick={()=>fetchurl('/screenshot')}>Screenshot</Button>
-         <Button onClick={()=>fetchurl('/screenshot.png')}>Screenshot.png</Button>
          <Button onClick={echo}>Echo</Button>
          <Button onClick={reload}>Reload</Button>
         </span>
