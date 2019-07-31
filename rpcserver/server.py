@@ -8,6 +8,9 @@ import os
 import io
 import pdb
 
+from tornado.log import enable_pretty_logging
+enable_pretty_logging()
+
 from screenshot.gbm import crtcScreenshot
 from faketouchscreen import FakeTouchscreen
 touchscreen = FakeTouchscreen()
@@ -77,7 +80,7 @@ class ClickHandler(BH):
     @basicauth
     def get(self):
         x = int(self.get_argument('x'))
-        y = int(self.get_argument('x'))
+        y = int(self.get_argument('y'))
         touchscreen.touch(x,y)
         self.write('ok')
         
