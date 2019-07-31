@@ -2,15 +2,17 @@ class NanoEvents {
   constructor() {
     this._listeners = {}
   }
-  on(k, cb) {
+  on(k, cb, opts) {
     if (this._listeners[k] === undefined) this._listeners[k] = []
-    this._listeners[k].push(cb)
+    this._listeners[k].push({cb,opts})
   }
   emit(k, arg) {
     if (this._listeners[k]) {
-      for (const cb of this._listeners[k]) {
+      for (const {cb} of this._listeners[k]) {
         cb(arg)
       }
+      // remove events if they have the "once" option set
+      this._listeners[k] = this._listeners[k].filter( ({opts}) => !(opts && opts.once) )
     }
   }
 }
@@ -110,17 +112,17 @@ export class RTCPeer extends NanoEvents {
   }
 
   dc_peer_message = e => {
-    console.log('dc_peer message',e)
+    // console.log('dc_peer message',e)
     // try to json parse
     let {data} = e
     if (data instanceof ArrayBuffer) {
-      console.log('array buffer dc message',data)
+      // console.log('array buffer dc message',data)
     } else {
       try {
         data = JSON.parse(data)
-        console.log('got json message',data)
+        // console.log('got json message',data)
       } catch(e) {
-        console.log('got string message',data)
+        // console.log('got string message',data)
       }
     }
     this.emit('data',data)

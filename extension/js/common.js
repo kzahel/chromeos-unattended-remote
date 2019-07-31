@@ -76,11 +76,43 @@ export function p2pconnect(clientid) {
   m.sendto(clientid, {initp2p:true, id, ctr:peer.ctr++})
   peer.on('signal', data => {
     // console.log('initiator wants to signal',data)
-    m.sendto(clientid, {test:1, frominitiator:true, id, signal:data, ctr:peer.ctr++})
+    m.sendto(clientid, {frominitiator:true, id, signal:data, ctr:peer.ctr++})
   });
   peer.on('error',e=>console.error('p2p conn failed',e))
   peer.on('connect',()=>console.log('connected'))
-  peer.on('data',d=>console.log('got data',d))
+
+  // receive chunked binary data and reassemble it
+  let offset = 0
+  let fullBuffer = null
+  const STATES = {
+    none:0,
+    payload:1,
+  }
+  let STATE = STATES.none
+  async function onReceivedDataFromClient(d) {
+    // client peer behavior is different ...
+    if (d.payloadBegin) {
+      console.assert(STATE === STATES.none)
+      console.log('payload begin')
+      console.assert(d.byteLength)
+      fullBuffer = new Uint8Array(d.byteLength)
+      STATE = STATES.payload
+    } else if (d instanceof ArrayBuffer) {
+      console.assert(STATE === STATES.payload)
+      fullBuffer.set(new Uint8Array(d), offset)
+      offset += d.byteLength
+    } else if (d.payloadEnd) {
+      console.assert(offset === fullBuffer.length)
+      console.assert(STATE === STATES.payload)
+      peer.emit('payload',fullBuffer.buffer)
+      STATE = STATES.none
+      fullBuffer = null
+      offset = 0
+    } else {
+      console.warn('unhandled p2p response data',d)
+    }
+  }
+  peer.on('data',onReceivedDataFromClient)
   initiator_conns[id] = {peer, peerid: clientid}
   return peer
 }

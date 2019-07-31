@@ -11,7 +11,7 @@ export function handleMessage(msg) {
     const peer = new RTCPeer()
     client_conns[message.id] = {peer, peerid: msg.sender}
     peer.on('data', async (d) => {
-      console.log('client p2p got data',d)
+      // console.log('client p2p got data',d)
       if (d.command) {
         const {command} = d
         if (command.reload) {
@@ -42,7 +42,24 @@ export function handleMessage(msg) {
           const response = await authfetch(`${config.rpc_url}${command.fetch}`)
           let data
           if (command.responseType) {
-            data = await response[command.responseType]()
+            const clen = parseInt(response.headers.get('content-length'))
+            const buffer = await response[command.responseType]()
+            // 16 KiB chunks is safest
+            // no backpressure AFAIK mechanism, so just send it all...
+            peer.send({payloadBegin:true,byteLength:clen,request:command})
+            const chunkSz = 2**14
+            let offset = 0
+            while (true) {
+              const cur = buffer.slice(offset, offset+chunkSz)
+              // console.log('send buf of len',cur.byteLength)
+              peer.send(cur)
+              offset += chunkSz
+              if (offset >= clen) {
+                break
+              }
+            }
+            peer.send({payloadEnd:true,byteLength:clen,request:command})
+            return
           } else {
             data = await response.text()
           }
@@ -57,7 +74,7 @@ export function handleMessage(msg) {
       m.sendto(msg.sender, {test:1, frominitiator:false, signal: d, id:message.id, ctr:peer.ctr++})
     })
   } else if (message.signal && message.id) {
-    console.log('signal',message)
+    //console.log('signal',message)
     let peer
     if (message.frominitiator) {
       // from the initiator 

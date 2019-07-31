@@ -12,9 +12,9 @@ import {
   getPeers,
   p2pconnect,
 } from './common.js'
+import * as common from './common.js'
 
-
-
+window.common = common
 window.initiator_conns = {}
 window.client_conns = {}
 
@@ -23,6 +23,7 @@ function Peer(props) {
   const [p, setP] = useState(null)
   const [connecting, setConnecting] = useState(false)
   const [connected, setConnected] = useState(false)
+  const [screenshotURL, setScreenshotURL] = useState(false)
   
   async function connect() {
     const p = p2pconnect(props.clientid)
@@ -38,6 +39,12 @@ function Peer(props) {
   }
   function screenshot_png() {
     p.send({command:{responseType:'arrayBuffer',fetch:'/screenshot.png'}})
+    p.on('payload',buffer => {
+      const blob = new Blob([buffer], {type: 'image/png'})
+      const url = URL.createObjectURL(blob)
+      if (screenshotURL) URL.revokeObjectURL(screenshotURL)
+      setScreenshotURL(url)
+    }, {once:true})
   }
   function reload() {
     p.send({command:{reload:true}})
@@ -65,6 +72,7 @@ function Peer(props) {
         </span>
         }
       </CardActions>
+      {screenshotURL ? <img style={{width:'100%'}} src={screenshotURL} /> : null }
     </Card>
   );
 }
@@ -92,15 +100,11 @@ function Options() {
 }
 
 document.addEventListener("DOMContentLoaded",()=>{
-
   main()
-  
   const approot = document.getElementById('approot')
   console.log('approot',approot)
   ReactDOM.render(
-
       <Options />
       ,approot
-
   );
 });
