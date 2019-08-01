@@ -40,6 +40,7 @@ class FakeKeyboard:
     def __init__(self):
         if not os.path.exists('/dev/uinput'):
             print 'error /dev/uinput does not exist. cannot make device'
+            self.d = None
             return
         self.d = UInput(cap, name='Fake Keyboard', version=0x3)
 
@@ -63,12 +64,14 @@ class FakeKeyboard:
         # special mappings '@' => 'at' etc.
         
         code = getattr(e, 'KEY_%s' % key.upper())
+        if not self.d: return
         self.d.write(e.EV_KEY, code, upordown)
         self.d.syn()
         
     def press(self, key):
         key = self.jskey(key)
         code = getattr(e, 'KEY_%s' % key)
+        if not self.d: return
         self.d.write(e.EV_KEY, code, 1)
         self.d.syn()
         time.sleep(TMIN)
@@ -90,6 +93,7 @@ class FakeKeyboard:
     #from https://gist.github.com/paulo-raca/0e772864013b88de205a
     def uchar(self, char):
         # this probably doesn't work on the login screen
+        if not self.d: return
         ui = self.d
         
         ui.write(e.EV_KEY, e.KEY_LEFTCTRL, 1)

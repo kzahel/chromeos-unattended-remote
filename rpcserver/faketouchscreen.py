@@ -34,10 +34,12 @@ class FakeTouchscreen:
     def __init__(self):
         if not os.path.exists('/dev/uinput'):
             print 'error /dev/uinput does not exist. cannot make device'
+            self.d = None
             return
         self.d = UInput(cap, name='Fake Touchscreen', version=0x3)
 
     def down(self,x,y):
+        if not self.d: return
         trackid = int(random.random() * TRACKIDMAX)
         self.d.write(EV_ABS, ABS_MT_TRACKING_ID, trackid)
         self.d.write(EV_ABS, ABS_MT_POSITION_X, x)
@@ -50,6 +52,7 @@ class FakeTouchscreen:
         self.d.syn()
 
     def up(self):
+        if not self.d: return
         self.d.write(EV_ABS, ABS_MT_TRACKING_ID, -1)
         self.d.write(EV_KEY, BTN_TOUCH, 0)
         self.d.write(EV_ABS, ABS_PRESSURE, 0)
@@ -57,6 +60,7 @@ class FakeTouchscreen:
         self.d.syn()
 
     def touch(self,x,y):
+        if not self.d: return
         self.down(x,y)
         time.sleep(TMIN)
         self.up()

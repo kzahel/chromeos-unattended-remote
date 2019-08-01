@@ -1,8 +1,66 @@
 import {RTCPeer} from './rtc_peer.js'
 import {config} from './config.js'
 import {
-  authfetch
+  authfetch,
 } from './common.js'
+
+class WebSocketRPC {
+  constructor() {
+    this.authed = false
+    this._connect_attempts = 0
+    this._connected = false
+    this.connect()
+  }
+  async connect() {
+    const ws = new WebSocket(`${config.ws_rpc_url}/wsRPC`)
+    this._connect_attempts++
+    ws.onopen = this.onopen
+    ws.onmessage = this.onmessage
+    // ws.onclose = ws.onerror = this.onclose
+    // onerror is redundant?
+    ws.onclose = this.onclose
+    this.ws = ws
+    this._requests = {}
+    this.reqid = 0
+  }
+  onopen = async () => {
+    console.log('ws onopen')
+    this._connected = true
+    this._connect_attempts = 0
+    const id = this.reqid++
+    const password = (await chromise.storage.local.get('rpcpassword')).rpcpassword
+    const authresp = await this.request({id, type:'AUTH', payload:{password:password}})
+    if (authresp.ok) this.authed = true
+  }
+  onmessage = ({data}) => {
+    const message = JSON.parse(data)
+    const {id, type, payload} = message
+    const req = this._requests[id]
+    console.assert(req)
+    req.resolve(payload)
+  }
+  onclose = (e) => {
+    this._connected = false
+    const retry = Math.pow(this._connect_attempts,2) * 200
+    console.error('ws close',e,'retry in',retry/1000,'seconds')
+    setTimeout(()=>{
+      this.connect()
+    }, retry)
+  }
+  send(m) {
+    this.ws.send(m)
+  }
+  request(req) {
+    const id = this.reqid++
+    req.id = id
+    return new Promise(resolve=>{
+      this._requests[id] = {resolve, req}
+      this.ws.send(JSON.stringify(req))
+    })
+  }
+  
+}
+const wsRPC = new WebSocketRPC
 
 export function handleMessage(msg) {
   // console.log('got direct message',msg)
@@ -41,6 +99,8 @@ export function handleMessage(msg) {
         }
         if (command.rawKeyboard) {
           // raw keyboard event
+          await wsRPC.request({type: 'RAW_KEYBOARD', payload: {event:command.rawKeyboard}})
+          return
           const response = await authfetch(`${config.rpc_url}/rawkeyboard`,
                                            {
                                              credentials:'include',

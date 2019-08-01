@@ -12,9 +12,12 @@ import {
   getPeers,
   p2pconnect,
 } from './common.js'
+import {config} from './config.js'
 import * as common from './common.js'
 
+window.p2pconnect = p2pconnect
 window.common = common
+window.config = config
 window.initiator_conns = {}
 window.client_conns = {}
 
@@ -24,6 +27,12 @@ function Peer(props) {
   const [connected, setConnected] = useState(false)
   const [screenshotURL, setScreenshotURL] = useState(false)
   const [unmounted, setUnmounted] = useState(false)
+
+  useEffect(()=>{
+    const name = props.info.name
+    // DEBUG -- connect to self
+    // if (name==='pixelbook') connect()
+  },[])
   
   useEffect(()=>{
     (async ()=>{
@@ -32,7 +41,8 @@ function Peer(props) {
       while (true) {
         if (unmounted) return
         const url = await fetchurl('/screenshot')
-        console.log('got updated screenshot url',url)
+        // console.log('got updated screenshot url',url)
+        console.log('got new screenshot, next in 2s')
         await new Promise(r=>setTimeout(r,2000))
       }
     })()
@@ -97,13 +107,13 @@ function Peer(props) {
     for (const key of things) {
       d[key] = e[key]
     }
-    // if (d.repeat) return // does shift key repeat?
+    if (d.repeat) return // does shift key repeat?
     console.log('key',d)
     // only do this for keys that don't "type" a character.
-    //if (['keydown','keyup'].includes(d.type))
-    //  sendRawKeyboard(d)
-    if (d.type === 'keypress')
-      sendKeypress(d)
+    if (['keydown','keyup'].includes(d.type))
+      sendRawKeyboard(d)
+    //if (d.type === 'keypress')
+    //  sendKeypress(d)
   }
   return (
     <Card styles={{padding:10,margin:10}}>

@@ -1,6 +1,8 @@
 import tornado.httpserver
 import tornado.ioloop
 import tornado.web
+import tornado.options
+import tornado.websocket
 
 import base64
 import json
@@ -8,8 +10,14 @@ import os
 import io
 import pdb
 
-from tornado.log import enable_pretty_logging
-enable_pretty_logging()
+#from tornado.log import enable_pretty_logging
+#enable_pretty_logging()
+
+from tornado.options import define, options
+
+define("port", default=8000, help="port to listen on")
+define("debug", default=True, help="debug", type=bool)
+
 
 from screenshot.gbm import crtcScreenshot
 from faketouchscreen import FakeTouchscreen
@@ -77,6 +85,11 @@ class ScreenshotHandler(BH):
     def get(self):
         self.set_header('content-type','image/png')
         self.set_cors()
+        if not os.path.exists('/dev/dri'):
+            # pass
+            self.write(open('screenshot.png','rb').read())
+            return
+            
         screen_num=0
         image = crtcScreenshot(screen_num)
         # this can segfault or maybe we can catch it at this point already
@@ -113,7 +126,7 @@ class RawKeyboardHandler(BH):
         # it can repeat even if you dont want it to.
 
         # cant use JS keypress because it wont send CTRL key for example
-        
+
         fakekb.rawevent(event)
         # fakekb.(data['text'])
         self.write('ok')
@@ -130,8 +143,67 @@ class KeypressHandler(BH):
         fakekb.press(event['key'])
         self.write('ok')
 
+class RPCHandler(tornado.websocket.WebSocketHandler):
+    def check_origin(self, origin):
+        ext_origin = 'chrome-extension://clpjjmbkkeeceijbgonalbjhepbikhhm'
+        if origin == ext_origin:
+            return True
+        else:
+            print 'origin must be',ext_origin
+    
+    def open(self):
+        self.authenticated = False
+        print("WebSocket opened")
+
+    def check_message(self, message):
+        required = set(['id','type','payload'])
+        return set(required) == set(message.keys())
+
+    def doclose(self, reason):
+        self.close(1, reason)
+        
+    def on_message(self, message):
+        message = json.loads(message)
+        if not self.check_message(message):
+            print 'invalid message',message
+            return self.doclose('invalid message')
+        if not self.authenticated:
+            if message['type'] == 'AUTH':
+                if message['payload']['password'] == settings['password']:
+                    self.authenticated = True
+                    self.respond(message, {'ok':True})
+                else:
+                    self.doclose('invalid credentials')
+            else:
+                self.doclose('not authenticated')
+        else:
+            self.handle_request(message)
+
+    def handle_request(self, req):
+        if not self.authenticated:
+            return self.doclose('not authenticated')
+
+        type = req['type']
+        payload = req['payload']
+        if type == 'RAW_KEYBOARD':
+            fakekb.rawevent(payload['event'])
+            self.respond(req, dict(ok=True))
+        else:
+            self.respond(req, dict(error=True, message='unknown message type'))
+        
+    def send(self, d):
+        return self.write_message(json.dumps(d))
+        
+    def respond(self, req, data):
+        id = req['id']
+        self.send(dict(id=id, type=req['type'], payload=data))
+        
+    def on_close(self):
+        print("WebSocket closed")
+        
 def main():
-    application = tornado.web.Application([
+    tornado.options.parse_command_line()
+    routes = [
         (r"/", MainHandler),
         ('/screenshot.png', FakeScreenshotHandler),
         ('/screenshot', ScreenshotHandler),
@@ -139,9 +211,12 @@ def main():
         ('/utype', UTypeHandler),
         ('/rawkeyboard', RawKeyboardHandler),
         ('/keypress', KeypressHandler),
-    ])
+        ('/wsRPC', RPCHandler),
+    ]
+    application = tornado.web.Application(routes,
+                                          debug=options.debug)
     http_server = tornado.httpserver.HTTPServer(application)
-    http_server.listen(settings['port'])
+    http_server.listen(options.port)
     tornado.ioloop.IOLoop.current().start()
 
 

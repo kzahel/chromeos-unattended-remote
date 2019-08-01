@@ -27,6 +27,7 @@ export async function main() {
   }, 1000);
   */
   console.log('getpeers',await getPeers())
+  // XXX RACE CONDITION!
   const m = new Messaging(clientid)
   window.m = m
   m.onDirectMessage = handleMessage
@@ -96,7 +97,7 @@ export function p2pconnect(clientid) {
     // client peer behavior is different ...
     if (d.payloadBegin) {
       console.assert(STATE === STATES.none)
-      console.log('payload begin')
+      // console.log('payload begin')
       console.assert(d.byteLength)
       fullBuffer = new Uint8Array(d.byteLength)
       STATE = STATES.payload
