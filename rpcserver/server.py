@@ -14,6 +14,8 @@ enable_pretty_logging()
 from screenshot.gbm import crtcScreenshot
 from faketouchscreen import FakeTouchscreen
 touchscreen = FakeTouchscreen()
+from fakekeyboard import FakeKeyboard
+fakekb = FakeKeyboard()
 
 DEFAULT_PORT = 8000
 def initialize_settings():
@@ -31,8 +33,12 @@ settings = initialize_settings()
 print 'listening on 127.0.0.1:%s' % settings['port']
 print 'rpc password is:', settings['password']
 
+OPENAUTH = False # authenticate everything
+
 def basicauth(func):
     def inner(self, *args, **kw):
+        if OPENAUTH:
+            return func(self, *args, **kw)
         if self.get_current_user():
             return func(self, *args, **kw)
         else:
@@ -69,8 +75,12 @@ class FakeScreenshotHandler(BH):
 class ScreenshotHandler(BH):
     @basicauth
     def get(self):
+        self.set_header('content-type','image/png')
+        self.set_cors()
         screen_num=0
         image = crtcScreenshot(screen_num)
+        # this can segfault or maybe we can catch it at this point already
+        print('got image',image)
         imgByteArr = io.BytesIO()
         image.save(imgByteArr, format='PNG')
         imgByteArr = imgByteArr.getvalue()
@@ -84,6 +94,41 @@ class ClickHandler(BH):
         touchscreen.touch(x,y)
         self.write('ok')
         
+class UTypeHandler(BH):
+    @basicauth
+    def post(self):
+        data = json.loads(self.request.body.decode('utf-8'))
+        print('please type',data['text'])
+        fakekb.utype(data['text'])
+        self.write('ok')
+
+class RawKeyboardHandler(BH):
+    @basicauth
+    def post(self):
+        data = json.loads(self.request.body.decode('utf-8'))
+        event = data['event']
+        print('handle raw keyboard event',event)
+
+        # keydown is sensitive to timing on when keyup event gets sent...
+        # it can repeat even if you dont want it to.
+
+        # cant use JS keypress because it wont send CTRL key for example
+        
+        fakekb.rawevent(event)
+        # fakekb.(data['text'])
+        self.write('ok')
+
+class KeypressHandler(BH):
+    @basicauth
+    def post(self):
+        # these events can still come out of order! (because chrome uses multiple connections)
+        # we want the events in the same order, so we will have to use a websocket instead.
+        
+        data = json.loads(self.request.body.decode('utf-8'))
+        event = data['event']
+        print('handle keypress event',event)
+        fakekb.press(event['key'])
+        self.write('ok')
 
 def main():
     application = tornado.web.Application([
@@ -91,6 +136,9 @@ def main():
         ('/screenshot.png', FakeScreenshotHandler),
         ('/screenshot', ScreenshotHandler),
         ('/click', ClickHandler),
+        ('/utype', UTypeHandler),
+        ('/rawkeyboard', RawKeyboardHandler),
+        ('/keypress', KeypressHandler),
     ])
     http_server = tornado.httpserver.HTTPServer(application)
     http_server.listen(settings['port'])

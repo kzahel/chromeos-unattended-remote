@@ -28,13 +28,16 @@ export class RTCPeer extends NanoEvents {
     this.dc = null
     this.pc.onicecandidate = this.onicecandidate
 
-    const events = ['signalingstatechanged',
-                    'icecandidateerror',
-                    'icegatheringstatechange',
-                    'negotiationneeded']
+    const events = [
+      'onclose',
+      'onerror',
+      'signalingstatechanged',
+      'icecandidateerror',
+      'icegatheringstatechange',
+      'negotiationneeded']
     for (event of events) {
       this.pc[event] = (e) => {
-        console.warn(event,e)
+        console.warn(this.pc,event,e)
       }
     }
     this.dc = this.pc.createDataChannel(this.initiator ? 'sendChannel' : 'receiveChannel')

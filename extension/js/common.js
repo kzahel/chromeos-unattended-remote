@@ -3,11 +3,14 @@ import {Messaging} from './sync_messaging.js'
 import {RTCPeer} from './rtc_peer.js'
 import {handleMessage} from './handler.js'
 
-export async function authfetch(url) {
+export async function authfetch(url, opts) {
+  opts = opts || {}
+  opts.headers = opts.headers || {}
   const username = 'user'
   const password = (await chromise.storage.local.get('rpcpassword')).rpcpassword
-  const headers = new Headers({'Authorization': 'Basic '+btoa(`${username}:${password}`)})
-  return fetch(url,{headers})
+  //const headers = new Headers()
+  const headers = {'Authorization': 'Basic '+btoa(`${username}:${password}`), ...opts.headers}
+  return fetch(url,{...opts, headers})
 }
 
 export async function main() {

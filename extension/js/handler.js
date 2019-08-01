@@ -14,6 +14,7 @@ export function handleMessage(msg) {
       // console.log('client p2p got data',d)
       if (d.command) {
         const {command} = d
+        const {id} = command;
         if (command.reload) {
           peer.dc.close()
           setTimeout( () => {
@@ -25,6 +26,42 @@ export function handleMessage(msg) {
         }
         if (command.close) {
           peer.dc.close()
+        }
+        if (command.utype) {
+          const response = await authfetch(`${config.rpc_url}/utype`,
+                                           {
+                                             credentials:'include',
+                                             headers:{'content-type':'application/json'},
+                                             method:'post',
+                                             body:JSON.stringify({text:command.utype})
+                                           });
+          const text = await response.text()
+          peer.send({id, ok:true, text})
+          // type a unicode string
+        }
+        if (command.rawKeyboard) {
+          // raw keyboard event
+          const response = await authfetch(`${config.rpc_url}/rawkeyboard`,
+                                           {
+                                             credentials:'include',
+                                             headers:{'content-type':'application/json'},
+                                             method:'post',
+                                             body:JSON.stringify({event:command.rawKeyboard})
+                                           });
+          const text = await response.text()
+          peer.send({id, ok:true, text})
+        }
+        if (command.keypress) {
+          // raw keyboard event
+          const response = await authfetch(`${config.rpc_url}/keypress`,
+                                           {
+                                             credentials:'include',
+                                             headers:{'content-type':'application/json'},
+                                             method:'post',
+                                             body:JSON.stringify({event:command.keypress})
+                                           });
+          const text = await response.text()
+          peer.send({id, ok:true, text})
         }
         if (command.click) {
           const response = await authfetch(`${config.rpc_url}/click?x=${command.click.x}&y=${command.click.y}`)
@@ -40,9 +77,14 @@ export function handleMessage(msg) {
         }
         if (command.fetch) {
           const response = await authfetch(`${config.rpc_url}${command.fetch}`)
+          if (! [204,200].includes(response.status)) {
+            peer.send({id, status:response.status})
+            return
+          }
           let data
           if (command.responseType) {
             const clen = parseInt(response.headers.get('content-length'))
+            console.assert(clen)
             const buffer = await response[command.responseType]()
             // 16 KiB chunks is safest
             // no backpressure AFAIK mechanism, so just send it all...

@@ -62,6 +62,12 @@ function Peer(props) {
       }, {once:true})
     })
   }
+  function sendRawKeyboard(e) {
+    p.send({command:{rawKeyboard:e}})
+  }
+  function sendKeypress(e) {
+    p.send({command:{keypress:e}})
+  }
   function reload() {
     p.send({command:{reload:true}})
   }
@@ -85,7 +91,20 @@ function Peer(props) {
     await new Promise(r=>setTimeout(r,100))
     fetchurl('/screenshot')
   }
-  
+  function onKey(e) {
+    const things = ['type','key','keyCode','shiftKey','ctrlKey','altKey','repeat']
+    const d = {code:e.nativeEvent.code} // layout specific
+    for (const key of things) {
+      d[key] = e[key]
+    }
+    // if (d.repeat) return // does shift key repeat?
+    console.log('key',d)
+    // only do this for keys that don't "type" a character.
+    //if (['keydown','keyup'].includes(d.type))
+    //  sendRawKeyboard(d)
+    if (d.type === 'keypress')
+      sendKeypress(d)
+  }
   return (
     <Card styles={{padding:10,margin:10}}>
       <CardContent>
@@ -99,12 +118,19 @@ function Peer(props) {
         {connected &&
          <span>
          <Button onClick={()=>fetchurl('/screenshot')}>Screenshot</Button>
+         <Button onClick={()=>fetchurl('/screenshot.png')}>Screenshot.png</Button>
          <Button onClick={echo}>Echo</Button>
          <Button onClick={reload}>Reload</Button>
         </span>
         }
       </CardActions>
-      {screenshotURL ? <img onClick={imageClick} style={{width:'100%'}} src={screenshotURL} /> : null }
+      {screenshotURL && <div tabIndex="0"
+                             onKeyDown={onKey}
+                             onKeyUp={onKey}
+                             onKeyPress={onKey}
+                        >
+        <img onClick={imageClick} style={{width:'100%'}} src={screenshotURL} />
+        </div>}
     </Card>
   );
 }
