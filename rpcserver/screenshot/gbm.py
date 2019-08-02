@@ -225,6 +225,9 @@ def crtcScreenshot(crtc_id=None):
         # Load the image, converting from the BGRX format to a PIL Image in RGB
         # form. As the conversion is implemented by PIL as C code, this
         # conversion is much faster than calling _bgrx24().
+
+        ### TODO/XXX this can segfault with: ValueError: not enough image data  
+        
         image = Image.frombytes(
         #image = Image.fromstring(
                 'RGB', (framebuffer.width, framebuffer.height), buffer_bytes,

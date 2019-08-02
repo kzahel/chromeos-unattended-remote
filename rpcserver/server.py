@@ -17,6 +17,7 @@ from tornado.options import define, options
 
 define("port", default=8000, help="port to listen on")
 define("debug", default=True, help="debug", type=bool)
+define("openauth", default=False, help="open auth (no password needed)", type=bool)
 
 
 from screenshot.gbm import crtcScreenshot
@@ -41,11 +42,9 @@ settings = initialize_settings()
 print 'listening on 127.0.0.1:%s' % settings['port']
 print 'rpc password is:', settings['password']
 
-OPENAUTH = False # authenticate everything
-
 def basicauth(func):
     def inner(self, *args, **kw):
-        if OPENAUTH:
+        if options.openauth:
             return func(self, *args, **kw)
         if self.get_current_user():
             return func(self, *args, **kw)
@@ -91,7 +90,13 @@ class ScreenshotHandler(BH):
             return
             
         screen_num=0
-        image = crtcScreenshot(screen_num)
+        try:
+            image = crtcScreenshot(screen_num)
+        except Exception, e:
+            self.set_status(500)
+            logging.error(e)
+            self.write('error getting screenshot')
+            return
         # this can segfault or maybe we can catch it at this point already
         print('got image',image)
         imgByteArr = io.BytesIO()
@@ -169,7 +174,10 @@ class RPCHandler(tornado.websocket.WebSocketHandler):
             return self.doclose('invalid message')
         if not self.authenticated:
             if message['type'] == 'AUTH':
-                if message['payload']['password'] == settings['password']:
+                if options.openauth:
+                    self.authenticated = True
+                    self.respond(message, {'ok':True})
+                elif message['payload']['password'] == settings['password']:
                     self.authenticated = True
                     self.respond(message, {'ok':True})
                 else:
@@ -216,7 +224,7 @@ def main():
     application = tornado.web.Application(routes,
                                           debug=options.debug)
     http_server = tornado.httpserver.HTTPServer(application)
-    http_server.listen(options.port)
+    http_server.listen(options.port, address='127.0.0.1')
     tornado.ioloop.IOLoop.current().start()
 
 
